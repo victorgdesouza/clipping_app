@@ -1,42 +1,34 @@
-# newsclip/utils.py
-
-import re
-import hashlib
-from collections import Counter
-import dateutil.parser
-from pathlib import Path
-
-from django.conf import settings
-from django.core.cache import cache
-from django.db import IntegrityError
-from django.utils import timezone as dj_timezone
-
+# no topo do arquivo, importe:
+import os
 from huggingface_hub import hf_hub_download
+from pathlib import Path
+from django.conf import settings
 from gpt4all import GPT4All
-from googlesearch import search
 
-from newsclip.models import Article
+# —————————————————————————————
+# 1) Carregamento do modelo do HF Hub
+# —————————————————————————————
 
+# onde vamos cachear (em BASE_DIR/models/)
+MODELS_DIR = Path(settings.BASE_DIR) / "models"
+MODELS_DIR.mkdir(exist_ok=True)
 
-# —————————————————————————————————————————
-# 1) Carregamento do modelo GPT4All via Hugging Face Hub
-# —————————————————————————————————————————
-
-# Identificação do repositório e nome do arquivo .gguf no HF Hub
+# dados exatos do repositório e arquivo no HF Hub
 HF_REPO_ID  = "maddes8cht/nomic-ai-gpt4all-falcon-gguf"
 HF_FILENAME = "nomic-ai-gpt4all-falcon-gguf.gguf"
 
-# hf_hub_download baixa (ou retorna de cache) o .gguf em ~/.cache/huggingface/hub/
+# baixa (ou usa cache) para MODELS_DIR
 MODEL_PATH = hf_hub_download(
     repo_id=HF_REPO_ID,
-    filename=HF_FILENAME
+    filename=HF_FILENAME,
+    cache_dir=str(MODELS_DIR)
 )
 
-# Inicializa o GPT4All apontando para esse arquivo
+# inicializa o GPT4All sem tentar baixar nada extra
 gpt = GPT4All(
     model_name=HF_FILENAME,
     model_path=str(MODEL_PATH),
-    allow_download=False,  # nunca tentar baixar de outro lugar
+    allow_download=False,
     verbose=False
 )
 
