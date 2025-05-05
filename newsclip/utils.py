@@ -1,47 +1,31 @@
-# newsclip/utils.py
-import re
-import hashlib
-from collections import Counter
+# no topo do arquivo
 from pathlib import Path
-
-from django.conf import settings
-from django.db import IntegrityError
-from django.utils import timezone as dj_timezone
-from django.core.cache import cache
-from googlesearch import search
-import dateutil.parser
-from newsclip.models import Article
-
-# ↓ Imports do HF e GPT4All
 from huggingface_hub import hf_hub_download
 from gpt4all import GPT4All
+# … seus outros imports …
 
-# —————————————————————————————————————————
-# 1) Carregamento do modelo LOCAL (.gguf) em BASE_DIR/models/
-# —————————————————————————————————————————
-
-# 1.1) Cria pasta de cache "models" dentro do seu projeto
+# 1) cria/cacheia em BASE_DIR/models/
 MODELS_DIR = Path(settings.BASE_DIR) / "models"
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
-# 1.2) Defina seu repositório e nome exato do arquivo no HF Hub
-HF_REPO_ID    = "victorgdesouza/gpt4all-falcon-newbpe-q4_0-gguf"
+# 2) parâmetros corretos do HF Hub
+HF_REPO_ID     = "victorgdesouza/gpt4all-falcon-newbpe-q4_0-gguf"
 MODEL_FILENAME = "gpt4all-falcon-newbpe-q4_0.gguf"
 
-# 1.3) Baixa (ou usa cache) - só uma chamada
+# 3) baixa OU usa cache local
 local_model_path = hf_hub_download(
-    repo_id=HF_REPO_ID,
-    filename=MODEL_FILENAME,
-    cache_dir=str(MODELS_DIR),
-    repo_type="model"  # importante para repos de modelo
+    repo_id     = HF_REPO_ID,
+    filename    = MODEL_FILENAME,
+    cache_dir   = str(MODELS_DIR),
+    repo_type   = "model",      # importante para repositório de modelo
 )
 
-# 1.4) Inicializa o GPT4All com o caminho do arquivo exato
+# 4) inicializa o GPT4All com o caminho ao arquivo exato
 gpt = GPT4All(
-    model_name=MODEL_FILENAME,
-    model_path=str(local_model_path),
-    allow_download=False,
-    verbose=False
+    model_name    = MODEL_FILENAME,
+    model_path    = str(local_model_path),
+    allow_download= False,
+    verbose       = False,
 )
 
 
