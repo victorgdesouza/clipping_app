@@ -18,7 +18,8 @@ def create_superuser(sender, **kwargs):
             )
             print(f"✨ Super‑usuário '{username}' criado automaticamente")
 
-class CoreConfig(AppConfig):
-    name = "core"
+class NewsclipConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'newsclip'
 
    

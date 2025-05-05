@@ -48,14 +48,13 @@ ALLOWED_HOSTS += [".onrender.com"]
 # Application definition
 
 INSTALLED_APPS = [
-    "core.apps.CoreConfig",          # <- aqui
+    'newsclip.apps.NewsclipConfig',
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "newsclip.apps.NewsclipConfig",  # seu app de clipping
     'django.contrib.sites',              # necessário para allauth
     'allauth',
     'allauth.account',
