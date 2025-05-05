@@ -26,6 +26,8 @@ MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
 HF_REPO_ID     = "victorgdesouza/gpt4all-falcon-newbpe-q4_0-gguf"
 MODEL_FILENAME = "gpt4all-falcon-newbpe-q4_0.gguf"
+gpt = GPT4All(model_path="gpt4all-falcon-newbpe-q4_0.gguf", allow_download=True)
+gpt.set_device("cpu")  # Força o uso da CPU em vez da GPU
 
 # baixa apenas UMA vez e guarda em models/
 local_file = hf_hub_download(
