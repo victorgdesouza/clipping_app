@@ -1,5 +1,6 @@
 # no topo do arquivo
 from pathlib import Path
+from django.conf import settings   
 from huggingface_hub import hf_hub_download
 from gpt4all import GPT4All
 # … seus outros imports …
