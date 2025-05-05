@@ -1,32 +1,49 @@
-# no topo do arquivo
+# newsclip/utils.py
+
 from pathlib import Path
-from django.conf import settings   
+from django.conf import settings           # ← não esqueça!
 from huggingface_hub import hf_hub_download
 from gpt4all import GPT4All
-# … seus outros imports …
 
-# 1) cria/cacheia em BASE_DIR/models/
+import re
+import hashlib
+from collections import Counter
+from django.db import IntegrityError
+from django.utils import timezone as dj_timezone
+from googlesearch import search
+from django.core.cache import cache
+from newsclip.models import Article
+import dateutil.parser
+
+
+# —————————————————————————————————————————
+# 1) Carregamento do modelo local (.gguf) em BASE_DIR/models/
+# —————————————————————————————————————————
+
+# pasta onde vamos guardar o cache
 MODELS_DIR = Path(settings.BASE_DIR) / "models"
 MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
-# 2) parâmetros corretos do HF Hub
 HF_REPO_ID     = "victorgdesouza/gpt4all-falcon-newbpe-q4_0-gguf"
 MODEL_FILENAME = "gpt4all-falcon-newbpe-q4_0.gguf"
 
-# 3) baixa OU usa cache local
-local_model_path = hf_hub_download(
-    repo_id     = HF_REPO_ID,
-    filename    = MODEL_FILENAME,
-    cache_dir   = str(MODELS_DIR),
-    repo_type   = "model",      # importante para repositório de modelo
+# baixa apenas UMA vez e guarda em models/
+local_file = hf_hub_download(
+    repo_id   = HF_REPO_ID,
+    filename  = MODEL_FILENAME,
+    cache_dir = str(MODELS_DIR),
+    repo_type = "model",
 )
 
-# 4) inicializa o GPT4All com o caminho ao arquivo exato
+# agora aponta para a pasta que contém o arquivo
+local_dir  = Path(local_file).parent
+
+# inicializa o GPT4All sem tentar baixar nada
 gpt = GPT4All(
-    model_name    = MODEL_FILENAME,
-    model_path    = str(local_model_path),
-    allow_download= False,
-    verbose       = False,
+    model_name     = MODEL_FILENAME,
+    model_path     = str(local_dir),
+    allow_download = False,
+    verbose        = False,
 )
 
 
