@@ -24,6 +24,7 @@ from newsclip.gpt_utils import gerar_consultas_com_distilgpt
 #   pip install nltk
 #   python -m nltk.downloader punkt stopwords
 
+
 def generate_summary(text: str, num_sentences: int = 3) -> str:
     # 1) quebrou em sentenças
     sentences = sent_tokenize(text, language='portuguese')
@@ -122,33 +123,22 @@ def save_article(client, title, url, raw_date, source):
 # 5) Wrapper para gerar consultas via DistilGPT
 # —————————————————————————————————————————
 
+_generator = None
+
+def get_generator():
+    global _generator
+    if _generator is None:
+        from transformers import pipeline
+        _generator = pipeline(
+            'text-generation',
+            model='distilgpt2',
+            device='cpu'  # garante que não tente GPU
+        )
+    return _generator
+
+
 def gerar_consultas_com_distilgpt(kws, max_queries=5):
-    """
-    Gera consultas via DistilGPT e faz cache do resultado por 1h
-    usando uma chave MD5 “segura” para o Memcached.
-    """
-    # 1) cria string “bruta” a partir das keywords
-    key_raw = "|".join(kws) + f"|{max_queries}"
-    # 2) gera hash MD5 dessa string
-    key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()
-    cache_key = f"gpt_queries_{key_hash}"
-
-    # 3) tenta ler do cache
-    consultas = cache.get(cache_key)
-    if consultas:
-        return consultas
-
-    # 4) se não tem no cache, geramos de fato
-    prompt = (
-        f"Você é um buscador de notícias. Gere até {max_queries} consultas Google "
-        f"otimizadas para estas palavras-chave: {kws}."
-    )
-    resp = generator(prompt, max_length=200, num_return_sequences=1)[0]['generated_text']
-
-    # 5) cleanup e limit
-    consultas = [linha.strip() for linha in resp.splitlines() if linha.strip()][:max_queries]
-
-    # 6) salva no cache por 1 hora (3600s)
-    cache.set(cache_key, consultas, timeout=3600)
-
-    return consultas
+    gen = get_generator()
+    prompt = f"Você é um buscador de notícias. Gere até {max_queries} consultas otimizadas para: {kws}"
+    txt = gen(prompt, max_length=100, num_return_sequences=1)[0]['generated_text']
+    return [linha.strip() for linha in txt.splitlines() if linha.strip()][:max_queries]

@@ -255,82 +255,58 @@ class Command(BaseCommand):
     help = "Busca notícias para cada cliente e salva as novas entradas"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--client-id",
-            type=int,
-            help="ID do cliente para filtrar"
-        )
+        parser.add_argument("--client-id", type=int, help="ID do cliente para filtrar")
 
     def handle(self, *args, **options):
         client_id = options.get("client_id")
-        clients = (
-            Client.objects.filter(id=client_id)
-            if client_id else Client.objects.all()
-        )
+        clients = Client.objects.filter(id=client_id) if client_id else Client.objects.all()
 
-        utc_now = datetime.utcnow()
-        since_dt = utc_now - timedelta(days=LOOKBACK_DAYS)
+        utc_now      = datetime.utcnow()
+        since_dt     = utc_now - timedelta(days=LOOKBACK_DAYS)
         overall_total = 0
 
         for client in clients:
-            raw = [kw.strip() for kw in client.keywords.split(",") if kw.strip()]
-            kws = [strip_accents(kw.strip('"').lower()) for kw in client.keywords.split(",") if kw.strip()]
-            seen = set()
+            kws   = [strip_accents(kw.strip('"').lower()) for kw in client.keywords.split(",") if kw.strip()]
             if not kws:
-                self.stdout.write(
-                    self.style.WARNING(f"{client.name}: sem keywords")
-                )
+                self.stdout.write(self.style.WARNING(f"{client.name}: sem keywords"))
                 continue
 
-            seen = set()
-            query = build_advanced_query(kws, getattr(client, 'operators', None))
+            seen  = set()
+            query = build_advanced_query(kws, getattr(client, "operators", None))
 
+            # ──────────────── THREAD POOL ────────────────
             with ThreadPoolExecutor(max_workers=6) as exe:
                 futures = {
                     exe.submit(self.fetch_newsdata,   client, query, since_dt, utc_now, seen): "NewsData",
-                    exe.submit(self.fetch_google_rss, client, kws, seen):                 "GoogleRSS",
-                    exe.submit(self.fetch_rss_feeds,  client, kws, since_dt, seen):      "RSSFeeds",
-                    exe.submit(self.fetch_scrape,     client, kws, seen):                "WebScrape",
-                    exe.submit(self.fetch_llm_search, client, kws, seen):                "LLMGoogle",
+                    exe.submit(self.fetch_google_rss, client, kws,               seen): "GoogleRSS",
+                    exe.submit(self.fetch_rss_feeds,  client, kws,     since_dt, seen): "RSSFeeds",
+                    exe.submit(self.fetch_scrape,     client, kws,               seen): "WebScrape",
                 }
+                if settings.USE_LLM_SEARCH:
+                    futures[exe.submit(self.fetch_llm_search, client, kws, seen)] = "LLMGoogle"
+
                 total = 0
-                               
                 for fut in as_completed(futures):
                     src = futures[fut]
                     try:
                         cnt = fut.result()
                         total += cnt
-                        self.stdout.write(
-                            self.style.SUCCESS(
-                                f"{client.name} • {src}: {cnt} novas"
-                            )
-                        )
+                        self.stdout.write(self.style.SUCCESS(f"{client.name} • {src}: {cnt} novas"))
                     except Exception as e:
-                        self.stdout.write(
-                            self.style.ERROR(
-                                f"{client.name} • {src} erro: {e}"
-                            )
-                        )
+                        self.stdout.write(self.style.ERROR(f"{client.name} • {src} erro: {e}"))
 
-                overall_total += total
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"{client.name}: total inseridas {total} notícias"
-                    )
-                )
+            overall_total += total
+            self.stdout.write(self.style.SUCCESS(f"{client.name}: total inseridas {total} notícias"))
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"🎉 Geral: {overall_total} notícias inseridas"
-            )
-        )
+        self.stdout.write(self.style.SUCCESS(f"🎉 Geral: {overall_total} notícias inseridas"))
+
 
     def fetch_newsdata(self, client, query, since_dt, until_dt, seen):
         cnt = 0
         if not NEWSDATA_KEY:
             return cnt
         params = {
-            'apikey': NEWSDATA_API_KEY,
+            'apikey': NEWSDATA_KEY,
             'q': query,
             'language': 'pt',
             'from_date': since_dt.strftime('%Y-%m-%d'),
@@ -351,6 +327,7 @@ class Command(BaseCommand):
                 )
                 cnt += 1
         return cnt
+
 
     def fetch_google_rss(self, client, kws, seen):
         cnt = 0

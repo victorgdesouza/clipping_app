@@ -14,12 +14,12 @@ import sys,os
 import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
-from transformers import pipeline
+#from transformers import pipeline
 
-generator = pipeline('text-generation', model='distilgpt2')
-output = generator("Aqui vai o prompt", max_length=100, num_return_sequences=1)
+#generator = pipeline('text-generation', model='distilgpt2')
+#output = generator("Aqui vai o prompt", max_length=100, num_return_sequences=1)
 
-GENERATOR = generator
+#GENERATOR = generator
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -54,6 +54,7 @@ ALLOWED_HOSTS += [".onrender.com"]
 
 INSTALLED_APPS = [
     'newsclip.apps.NewsclipConfig',
+    "django_q"
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -70,7 +71,16 @@ INSTALLED_APPS = [
     
 ]
 
-
+Q_CLUSTER = {
+    "name": "clipping",         # nome do cluster
+    "workers": 2,               # número de tarefas concorrentes
+    "recycle": 500,             # reinicia worker a cada 500 tarefas
+    "timeout": 300,             # timeout (s) por tarefa
+    "orm": "default",           # usa o DB Django como broker
+    "retry": 3,                 # tenta cada tarefa até 3 vezes se falhar
+    "save_limit": 250,          # armazena no máximo este número de resultados
+    "poll": 15,                 # checa fila a cada 15s
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -258,3 +268,4 @@ LOGGING = {
     },
 }
 
+USE_LLM_SEARCH = os.getenv("USE_LLM_SEARCH", "false").lower() == "true"
