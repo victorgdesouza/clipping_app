@@ -1,4 +1,3 @@
-{# templates/newsclip/client_news.html #}
 {% extends "base.html" %}
 {% load source_extras %}
 
@@ -15,60 +14,51 @@
     </button>
   </div>
 
-  <!-- overlay full-screen -->
-   <!-- seu overlay -->
-   <div id="loading-overlay">…</div>
+  <div id="loading-overlay">…</div>
 
-   <!-- AQUI: cole este bloco -->
-   <script>
-     // helper para ler o CSRF do cookie
-     function getCookie(name) {
-       let v = null;
-       document.cookie.split(';').forEach(c => {
-         c = c.trim();
-         if (c.startsWith(name + '=')) {
-           v = decodeURIComponent(c.slice(name.length + 1));
-         }
-       });
-       return v;
-     }
- 
-     const btnFetch = document.getElementById('btn-fetch-news');
-     const overlay  = document.getElementById('loading-overlay');
- 
-     btnFetch.addEventListener('click', e => {
-       e.preventDefault();
-       // 1) desabilita o botão e mostra overlay
-       btnFetch.disabled = true;
-       overlay.style.display = 'flex';
- 
-       // 2) dispara POST para sua view fetch_news
-       fetch("{% url 'fetch_news' client.id %}", {
-         method: 'POST',
-         headers: {
-           'X-CSRFToken': getCookie('csrftoken'),
-           'X-Requested-With': 'XMLHttpRequest'
-         }
-       })
-       .then(response => {
-         // se a view redirecionar, navega até lá
-         if (response.redirected) {
-           window.location.href = response.url;
-         } else {
-           // senão, recarrega a página atual
-           window.location.reload();
-         }
-       })
-       .catch(err => {
-         alert('Falha ao buscar notícias.');
-         console.error(err);
-         btnFetch.disabled = false;
-         overlay.style.display = 'none';
-       });
-     });
-    </script>
+  <script>
+    function getCookie(name) {
+      let v = null;
+      document.cookie.split(';').forEach(c => {
+        c = c.trim();
+        if (c.startsWith(name + '=')) {
+          v = decodeURIComponent(c.slice(name.length + 1));
+        }
+      });
+      return v;
+    }
 
-  {# ─── FILTROS ──────────────────────────────────────── #}
+    const btnFetch = document.getElementById('btn-fetch-news');
+    const overlay  = document.getElementById('loading-overlay');
+
+    btnFetch.addEventListener('click', e => {
+      e.preventDefault();
+      btnFetch.disabled = true;
+      overlay.style.display = 'flex';
+
+      fetch("{% url 'fetch_news' client.id %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => {
+        if (response.redirected) {
+          window.location.href = response.url;
+        } else {
+          window.location.reload();
+        }
+      })
+      .catch(err => {
+        alert('Falha ao buscar notícias.');
+        console.error(err);
+        btnFetch.disabled = false;
+        overlay.style.display = 'none';
+      });
+    });
+  </script>
+
   <form method="get" class="filter-form">
     <div class="filter-group">
       <label for="sort">Ordenar por:</label>
@@ -90,7 +80,6 @@
     <button type="submit" class="button">Aplicar filtros</button>
   </form>
 
-  {# ─── SELECTOR DE QUANTOS POR PÁGINA ──────────────── #}
   <form method="get" id="page-size-form" class="filter-form" style="margin-bottom:1.5em;">
     <label for="page_size">Mostrar:</label>
     <select name="page_size" id="page_size" onchange="this.form.submit()">
@@ -102,7 +91,6 @@
     <input type="hidden" name="source" value="{{ selected_source }}">
   </form>
 
-  {# ─── TABELA + BULK ACTIONS ───────────────────────── #}
   <form method="post" action="{% url 'bulk_update_news' client.id %}" id="bulk-form">
     {% csrf_token %}
     <div class="action-bar" id="bulk-actions" style="display:none; margin-bottom:1em;">
@@ -143,22 +131,34 @@
 
   {# ─── PAGINAÇÃO ───────────────────────────────────── #}
   <div class="pagination" style="margin-top:1em;">
+    {% comment %} Link para a primeira página {% endcomment %}
     {% if articles.has_previous %}
-      <a href="?page={{ articles.previous_page_number }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}"
-         class="pagination-link">‹ anterior</a>
+      <a
+        href="?page=1&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+        class="pagination-link">Primeira «</a>
+      <a
+        href="?page={{ articles.previous_page_number }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+        class="pagination-link">‹ anterior</a>
     {% endif %}
+
     <span class="pagination-info">
       página {{ articles.number }} de {{ articles.paginator.num_pages }}
     </span>
+
+    {% comment %} Link para a próxima página {% endcomment %}
     {% if articles.has_next %}
-      <a href="?page={{ articles.next_page_number }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}"
-         class="pagination-link">próxima ›</a>
+      <a
+        href="?page={{ articles.next_page_number }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+        class="pagination-link">próxima ›</a>
+      <a
+        href="?page={{ articles.paginator.num_pages }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+        class="pagination-link">Última »</a>
     {% endif %}
   </div>
 
+
   <hr class="section-divider">
 
-  {# ─── CHARTS ──────────────────────────────────────── #}
   <div class="charts-container">
     <div class="chart-box">
       <h2>Artigos por dia</h2>
@@ -176,8 +176,8 @@
         <p class="no-data">Sem dados para exibir.</p>
       {% endif %}
     </div>
-  
-  <!-- Inclua o Chart.js somente uma vez -->
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -186,85 +186,26 @@
       const source_labels = {{ source_labels_json|safe }};
       const source_counts = {{ source_counts_json|safe }};
 
-      // Chart diário (linha)
       if (daily_labels.length && daily_counts.length) {
         new Chart(document.getElementById('chart-daily'), {
           type: 'line',
-          data: {
-            labels: daily_labels,
-            datasets: [{
-              label: 'Artigos',
-              data: daily_counts,
-              borderColor: '#FF7F00',
-              backgroundColor: 'rgba(255,127,0,0.1)',
-              tension: 0.2
-            }]
-          },
-          options: {
-            animation: false,
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true } }
-          }
+          data: { labels: daily_labels, datasets: [{ label: 'Artigos', data: daily_counts, tension: 0.2 }] },
+          options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
         });
       }
-
-      // Chart fontes (barra horizontal)
       if (source_labels.length && source_counts.length) {
         new Chart(document.getElementById('chart-sources'), {
           type: 'bar',
-          data: {
-            labels: source_labels,
-            datasets: [{
-              label: 'Publicações',
-              data: source_counts,
-              backgroundColor: '#FF9933'
-            }]
-          },
-          options: {
-            animation: false,
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            scales: { x: { beginAtZero: true } },
-            plugins: {
-              legend: {
-                labels: { font: { family: "'Segoe UI', sans-serif" } }
-              }
-            }
-          }
+          data: { labels: source_labels, datasets: [{ label: 'Publicações', data: source_counts }] },
+          options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true } } }
         });
       }
     });
   </script>
 
   <style>
-    /* fixa altura do wrapper pra evitar resize contínuo */
     .chart-wrapper { position: relative; height: 250px; }
-    .spinner {
-      border:4px solid #eee;
-      border-top:4px solid #FF7F00;
-      border-radius:50%;
-      width:40px; height:40px;
-      animation:spin .8s linear infinite;
-      margin-bottom:.5em;
-    }
-    @keyframes spin { to{ transform:rotate(360deg); } }
-  </style>
-
-  <style>
-    /* overlay spinner */
-    #loading-overlay { display:none; flex-direction:column; text-align:center; }
-    .spinner {
-      border:4px solid #eee;
-      border-top:4px solid #FF7F00;
-      border-radius:50%;
-      width:40px; height:40px;
-      animation:spin 0.8s linear infinite;
-      margin-bottom:0.5em;
-    }
-    @keyframes spin { to{transform:rotate(360deg);} }
-
-    /* filter-form, styled-table, etc já estavam no seu CSS original */
+    .pagination-link { margin: 0 .5em; }
+    .pagination-link.disabled { color: #aaa; pointer-events: none; }
   </style>
 {% endblock content %}

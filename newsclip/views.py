@@ -2,6 +2,7 @@
 import os
 import json
 import pathlib
+from .forms import ReportForm
 from django.contrib import messages
 from django.shortcuts import redirect, get_object_or_404, render
 from django.contrib.auth.decorators import login_required
@@ -10,19 +11,25 @@ from django.conf import settings
 from django import forms
 from django.core.paginator import Paginator
 from django.core.management import call_command
-import threading
+
 from django.urls import reverse_lazy
 from django.contrib.auth.forms import UserCreationForm
 from django.views.generic import CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import JsonResponse
+from django.core.management.base import BaseCommand
 
 from django.views.decorators.http import require_POST 
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.urls import reverse
-
 from .models import Client, Article
+import threading
+
+from newsclip.models import Article
+from django.utils import timezone
+from datetime import timedelta
+
 
 # 1) Cadastro de usuário
 class SignUpView(CreateView):
@@ -30,21 +37,7 @@ class SignUpView(CreateView):
     form_class = UserCreationForm
     success_url = reverse_lazy("login")
 
-# 2) Form de relatório customizável
-class ReportForm(forms.Form):
-    DAYS_CHOICES = [
-        (15, "Últimos 15 dias"),
-        (30, "Últimos 30 dias"),
-        (60, "Últimos 60 dias"),
-        (90, "Últimos 90 dias"),
-    ]
-    FORMAT_CHOICES = [
-        ("pdf", "PDF"),
-        ("xlsx", "Excel (.xlsx)"),
-        ("csv", "CSV"),
-    ]
-    days = forms.ChoiceField(choices=DAYS_CHOICES)
-    out_format = forms.ChoiceField(choices=FORMAT_CHOICES, label="Formato")
+
 
 # 3) Cadastro de clientes
 class ClientCreateView(LoginRequiredMixin, CreateView):
@@ -187,12 +180,18 @@ def bulk_update_news(request, client_id):
 def fetch_news_view(request, client_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Método inválido")
-    # dispara a management command de forma síncrona
-    call_command("fetch_news", "--client-id", str(client_id))
-    # se veio via fetch/AJAX, retorna JSON
+
+    # Função que dispara o comando em background
+    def _run():
+        call_command("fetch_news", "--client-id", str(client_id))
+
+    # Inicializa a thread daemon
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    # Resposta imediata
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        return JsonResponse({"status": "ok"})
-    # caso contrário, redireciona
+        return JsonResponse({"status": "iniciado"})
     return redirect("client_news", client_id=client_id)
 
 @login_required
@@ -211,11 +210,11 @@ def client_reports(request, client_id):
             files.append(f.name)
     files.sort(reverse=True)
 
-    form = ReportForm(request.POST or None)
+    form = ReportForm() 
     return render(request, "newsclip/client_reports.html", {
         "client": client,
         "files": files,
-        "form": form,
+        "form": form,             # <- passa o form pro template
     })
 
 @require_POST
@@ -253,31 +252,43 @@ def bulk_update_news(request, client_id):
     messages.success(request, f"{updated} artigo(s) {verb}.")
     return redirect("client_news", client_id=client_id)
 
+@require_POST
 @login_required
 def generate_report_view(request, client_id):
     client = get_object_or_404(Client, id=client_id)
     if not (request.user.is_superuser or request.user in client.users.all()):
         return HttpResponseForbidden()
 
-    form = ReportForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        days = int(form.cleaned_data["days"])
-        out_format = form.cleaned_data["out_format"]
-        # chama o comando de management para gerar o relatório
-        call_command(
-            "generate_report",
-            client_id=client_id,
-            days=days,
-            format=out_format
-        )
-        # feedback para o usuário
-        messages.success(
-            request,
-            f"Relatório de {days} dias ({out_format.upper()}) agendado para geração."
-        )
-        return redirect("client_reports", client_id=client_id)
+    if request.method == "POST":
+        form = ReportForm(request.POST)
+        if form.is_valid():
+            days_str   = form.cleaned_data["days"]
+            out_format = form.cleaned_data["out_format"]
 
-    # Se não for POST ou form inválido, volta para a lista de relatórios
+            # Prepara label para feedback
+            if days_str == "all":
+                label = "todas as notícias"
+            else:
+                label = f"últimos {days_str} dias"
+
+            # Chama o comando passando days_str (string) para podermos tratar "all"
+            call_command(
+                "generate_report",
+                client_id=client_id,
+                days=days_str,
+                format=out_format
+            )
+
+            messages.success(
+                request,
+                f"Relatório de {label} ({out_format.upper()}) agendado com sucesso."
+            )
+            return redirect("client_reports", client_id=client_id)
+        else:
+            messages.error(request, "Formulário inválido. Verifique os dados e tente novamente.")
+            return redirect("client_reports", client_id=client_id)
+
+    # Se não for POST, apenas redireciona
     return redirect("client_reports", client_id=client_id)
 
 

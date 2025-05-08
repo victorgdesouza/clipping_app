@@ -5,32 +5,16 @@
 {% block content %}
   <h1>Relatórios: {{ client.name }}</h1>
 
-  {# Formulário para gerar novo relatório #}
-  <form action="{% url 'generate_report_view' client.id %}"
-        method="post"
-        style="margin-bottom: 1em;">
+  {# === Formulário para gerar novo relatório === #}
+  <h2>Gerar novo relatório</h2>
+  <form method="post" action="{% url 'generate_report_view' client.id %}">
     {% csrf_token %}
-    <label>
-      Intervalo:
-      <select name="days">
-        <option value="15">Últimos 15 dias</option>
-        <option value="30" selected>Últimos 30 dias</option>
-        <option value="60">Últimos 60 dias</option>
-        <option value="90">Últimos 90 dias</option>
-      </select>
-    </label>
-    <label style="margin-left: 1em;">
-      Formato:
-      <select name="out_format">
-        <option value="pdf" selected>PDF</option>
-        <option value="xlsx">Excel (.xlsx)</option>
-        <option value="csv">CSV</option>
-      </select>
-    </label>
-    <button type="submit" class="button">Gerar relatório</button>
+    {{ form.as_p }}  {# renderiza ‘days’ com todas as opções, inclusive “Relatório Completo” #}
+    <button type="submit">Gerar relatório</button>
   </form>
 
-  {# Lista de relatórios disponíveis #}
+  {# === Lista de relatórios disponíveis === #}
+  <h2>Relatórios já gerados</h2>
   <ul>
     {% for fname in files %}
       <li>
@@ -43,12 +27,10 @@
     {% endfor %}
   </ul>
 
-  <p style="margin-top: 1em;">
-    <a class="button" href="{% url 'client_news' client.id %}">
-      ← Voltar às notícias
-    </a>
-    <a class="button" href="{% url 'dashboard' %}">
-      ← Voltar aos clientes
-    </a>
+  {# === Navegação de volta === #}
+  <p style="margin-top:1em;">
+    <a class="button" href="{% url 'client_news' client.id %}">← Voltar às notícias</a>
+    <a class="button" href="{% url 'dashboard' %}">← Voltar aos clientes</a>
   </p>
 {% endblock %}
+

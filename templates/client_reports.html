@@ -15,12 +15,16 @@
   </p>
 
   <h2>Gerar novo relatório</h2>
-  <form method="post" action="{% url 'generate_report_view' client.id %}">
-    {% csrf_token %}
-    {{ form.days.label }} {{ form.days }}
-    {{ form.out_format.label }} {{ form.out_format }}
-    <button type="submit">Gerar</button>
-  </form>
+    
+  <form action="{% url 'generate_report_view' client.id %}"
+      method="post"
+      style="margin-bottom: 1em;">
+  {% csrf_token %}
+  {{ form.as_p }}              {# aqui entram days (incluindo “all”) e out_format #}
+  <button type="submit" class="button">Gerar relatório</button>
+</form>
+
+
 
   <h2>Relatórios já gerados</h2>
   {% if files %}

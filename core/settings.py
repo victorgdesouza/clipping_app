@@ -14,7 +14,12 @@ import sys,os
 import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
+from transformers import pipeline
 
+generator = pipeline('text-generation', model='distilgpt2')
+output = generator("Aqui vai o prompt", max_length=100, num_return_sequences=1)
+
+GENERATOR = generator
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,7 +33,7 @@ NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY", "")
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
 ALLOWED_HOSTS += [".onrender.com"]
-
+GPTNEO_MODEL = os.getenv("GPTNEO_MODEL", "distilgpt2")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -158,6 +163,39 @@ LOGOUT_REDIRECT_URL = "/login/"
 AUTHENTICATION_BACKENDS ="django.contrib.auth.backends.ModelBackend",                # login padrão
 "allauth.account.auth_backends.AuthenticationBackend",      # login via ALLAUTH
 
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'newsclip': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -186,7 +224,7 @@ ROOT_URLCONF = 'core.urls'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # no fim do arquivo settings.py
 USE_LLM_SEARCH = os.getenv("USE_LLM_SEARCH", "false").lower() == "true"
-GPT4ALL_MODEL  = os.getenv("GPT4ALL_MODEL")
+GPTNEO_MODEL = os.getenv("GPTNEO_MODEL", "EleutherAI/gpt-neo-2.7B")
 
 # Configuração de logging
 LOGGING = {

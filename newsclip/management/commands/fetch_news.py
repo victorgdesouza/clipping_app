@@ -11,7 +11,8 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
-from newsclip.utils import gerar_consultas_com_gpt4all, buscar_com_google,save_article
+from newsclip.utils import gerar_consultas_com_distilgpt, save_article
+from newsclip.utils import buscar_com_google
 
 from django.db import IntegrityError
 from django.core.management.base import BaseCommand
@@ -250,7 +251,6 @@ def build_advanced_query(keywords, operators=None):
         parts.append(f'"{kw}"' if ' ' in kw else kw)
     return ' '.join(parts)
 
-
 class Command(BaseCommand):
     help = "Busca notícias para cada cliente e salva as novas entradas"
 
@@ -285,17 +285,17 @@ class Command(BaseCommand):
             seen = set()
             query = build_advanced_query(kws, getattr(client, 'operators', None))
 
-        with ThreadPoolExecutor(max_workers=6) as exe:
-            futures = {
-                exe.submit(self.fetch_newsdata,   client, query, since_dt, utc_now, seen): "NewsData",
-                exe.submit(self.fetch_google_rss, client, kws, seen):                 "GoogleRSS",
-                exe.submit(self.fetch_rss_feeds,  client, kws, since_dt, seen):      "RSSFeeds",
-                exe.submit(self.fetch_scrape,     client, kws, seen):                "WebScrape",
-                exe.submit(self.fetch_llm_search, client, kws, seen):                "LLMGoogle",
-            }
-            total = 0
-                           
-            for fut in as_completed(futures):
+            with ThreadPoolExecutor(max_workers=6) as exe:
+                futures = {
+                    exe.submit(self.fetch_newsdata,   client, query, since_dt, utc_now, seen): "NewsData",
+                    exe.submit(self.fetch_google_rss, client, kws, seen):                 "GoogleRSS",
+                    exe.submit(self.fetch_rss_feeds,  client, kws, since_dt, seen):      "RSSFeeds",
+                    exe.submit(self.fetch_scrape,     client, kws, seen):                "WebScrape",
+                    exe.submit(self.fetch_llm_search, client, kws, seen):                "LLMGoogle",
+                }
+                total = 0
+                               
+                for fut in as_completed(futures):
                     src = futures[fut]
                     try:
                         cnt = fut.result()
@@ -312,12 +312,12 @@ class Command(BaseCommand):
                             )
                         )
 
-            overall_total += total
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"{client.name}: total inseridas {total} notícias"
+                overall_total += total
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"{client.name}: total inseridas {total} notícias"
+                    )
                 )
-            )
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -330,7 +330,7 @@ class Command(BaseCommand):
         if not NEWSDATA_KEY:
             return cnt
         params = {
-            'apikey': NEWSDATA_KEY,
+            'apikey': NEWSDATA_API_KEY,
             'q': query,
             'language': 'pt',
             'from_date': since_dt.strftime('%Y-%m-%d'),
@@ -511,7 +511,7 @@ class Command(BaseCommand):
         cnt = 0
         # 1) Gera e limpa consultas
         try:
-            consultas = gerar_consultas_com_gpt4all(kws, max_queries)
+            consultas = gerar_consultas_com_distilgpt(kws, max_queries)
             consultas = [q.replace("site:linkedin.com", "") for q in consultas]
             self.stdout.write(f"{client.name} • LLM: gerando {len(consultas)} consultas")
             urls = buscar_com_google(consultas, num_results=num_results)

@@ -1,112 +1,69 @@
 # newsclip/utils.py
 
-from pathlib import Path
-from django.conf import settings           # ← não esqueça!
-from huggingface_hub import hf_hub_download
-from gpt4all import GPT4All
-
 import re
 import hashlib
+from pathlib import Path
 from collections import Counter
+from django.conf import settings
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.utils import timezone as dj_timezone
 from googlesearch import search
-from django.core.cache import cache
+from dateutil import parser as date_parser
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
+
 from newsclip.models import Article
-import dateutil.parser
+from newsclip.gpt_utils import gerar_consultas_com_distilgpt
+
+# —————————————————————————————————————————
+# 1) Summary extractivo rápido (NLTK)
+# —————————————————————————————————————————
+
+# ATENÇÃO: Execute uma única vez:
+#   pip install nltk
+#   python -m nltk.downloader punkt stopwords
+
+def generate_summary(text: str, num_sentences: int = 3) -> str:
+    # 1) quebrou em sentenças
+    sentences = sent_tokenize(text, language='portuguese')
+    if len(sentences) <= num_sentences:
+        return text
+
+    # 2) tokeniza e conta frequência, sem stopwords
+    words = word_tokenize(text.lower(), language='portuguese')
+    tokens = [w for w in words if w.isalpha()]
+    stop = set(stopwords.words('portuguese'))
+    freqs = Counter(w for w in tokens if w not in stop)
+
+    # 3) pontua cada sentença
+    scores = {}
+    for idx, sent in enumerate(sentences):
+        sent_tokens = [w for w in word_tokenize(sent.lower()) if w.isalpha()]
+        scores[idx] = sum(freqs.get(w, 0) for w in sent_tokens)
+
+    # 4) escolhe as top N
+    best_idxs = sorted(scores, key=scores.get, reverse=True)[:num_sentences]
+    # 5) ordena de volta e junta
+    best_sentences = [sentences[i] for i in sorted(best_idxs)]
+    return " ".join(best_sentences)
 
 
 # —————————————————————————————————————————
-# 1) Carregamento do modelo local (.gguf) em BASE_DIR/models/
+# 2) Busca no Google via GPT + googlesearch
 # —————————————————————————————————————————
 
-# pasta onde vamos guardar o cache
-MODELS_DIR = Path(settings.BASE_DIR) / "models"
-MODELS_DIR.mkdir(exist_ok=True, parents=True)
-
-HF_REPO_ID     = "victorgdesouza/gpt4all-falcon-newbpe-q4_0-gguf"
-MODEL_FILENAME = "gpt4all-falcon-newbpe-q4_0.gguf"
-
-# baixa apenas UMA vez e guarda em models/
-local_file = hf_hub_download(
-    repo_id   = HF_REPO_ID,
-    filename  = MODEL_FILENAME,
-    cache_dir = str(MODELS_DIR),
-    repo_type = "model",
-)
-
-# agora aponta para a pasta que contém o arquivo
-local_dir  = Path(local_file).parent
-
-# inicializa o GPT4All sem tentar baixar nada
-gpt = GPT4All(
-    model_name     = MODEL_FILENAME,
-    model_path     = str(local_dir),
-    allow_download = False,
-    verbose        = False,
-)
-
-
-# —————————————————————————————————————————
-# 2) Geração de queries otimizadas + busca Google
-# —————————————————————————————————————————
-
-def gerar_consultas_com_gpt4all(keywords: list[str], max_queries: int = 5) -> list[str]:
-    prompt = (
-        f"Você é um buscador de notícias. Gere até {max_queries} consultas Google "
-        f"otimizadas para estas palavras-chave: {keywords}. "
-        "Inclua termos como site:instagram.com, site:linkedin.com, site:youtube.com "
-        "e portais de jornais impressos."
-    )
-    resp = gpt.generate(prompt)
-    queries = [linha.strip() for linha in resp.splitlines() if linha.strip()]
-    return queries[:max_queries]
-
-def buscar_com_google(queries: list[str], num_results: int = 20) -> list[str]:
-    key = "llm_urls:" + hashlib.md5("|".join(queries).encode()).hexdigest()
-    cached = cache.get(key)
-    if cached is not None:
-        return cached
-
+def buscar_com_google(queries: list[str], num_results: int = 10) -> list[str]:
     urls = []
     for q in queries:
-        try:
-            for url in search(q, num_results=num_results, lang="pt"):
-                urls.append(url)
-        except Exception:
-            continue
-
-    urls = list(dict.fromkeys(urls))
-    cache.set(key, urls, timeout=86400)
+        for url in search(q, num_results=num_results, lang="pt"):
+            urls.append(url)
     return urls
 
 
 # —————————————————————————————————————————
-# 3) Resumo simples e classificação de tópico
+# 3) Classificação de tópico simples
 # —————————————————————————————————————————
-
-STOPWORDS = {
-    "de","a","o","que","e","do","da","em","um","para",
-    "é","com","não","uma","os","no","se","na","por","mais",
-    "as","dos","como","mas","foi","ao","ele","das","tem",
-    "à","seu","sua","ou","ser","quando","muito","há","nos",
-    "já","está","eu","também","só","pelo","pela","até"
-}
-
-def generate_summary(text: str, num_sentences: int = 3) -> str:
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    if len(sentences) <= num_sentences:
-        return text
-
-    words = re.findall(r'\w+', text.lower())
-    freq = Counter(w for w in words if w not in STOPWORDS)
-
-    scored = [(sum(freq[w] for w in re.findall(r'\w+', s.lower())), s)
-              for s in sentences]
-    top = sorted(scored, key=lambda x: x[0], reverse=True)[:num_sentences]
-    top_sents = {s for _, s in top}
-    summary = [s for s in sentences if s in top_sents]
-    return " ".join(summary)
 
 class SimpleTopicClassifier:
     def __init__(self):
@@ -118,12 +75,15 @@ class SimpleTopicClassifier:
             "Cultura": ["cultura","música","filme","arte","literatura","teatro"],
             "Saúde": ["saúde","hospital","vacina","doença","médico","tratamento"],
         }
+
     def classify(self, text: str) -> str:
         text_low = text.lower()
-        scores = {topic: sum(text_low.count(kw) for kw in kws)
-                  for topic,kws in self.topic_keywords.items()}
-        best,val = max(scores.items(), key=lambda x:x[1])
-        return best if val>0 else "Sem classificação"
+        scores = {
+            topic: sum(text_low.count(kw) for kw in kws)
+            for topic, kws in self.topic_keywords.items()
+        }
+        best, val = max(scores.items(), key=lambda x: x[1])
+        return best if val > 0 else "Sem classificação"
 
 _topic_clf = SimpleTopicClassifier()
 
@@ -133,12 +93,14 @@ _topic_clf = SimpleTopicClassifier()
 # —————————————————————————————————————————
 
 def save_article(client, title, url, raw_date, source):
+    # converte raw_date em datetime
     dt = None
     if raw_date:
         try:
-            parsed = dateutil.parser.parse(raw_date)
-            dt = (parsed if parsed.tzinfo 
-                  else dj_timezone.make_aware(parsed, dj_timezone.get_current_timezone()))
+            parsed = date_parser.parse(raw_date)
+            dt = parsed if parsed.tzinfo else dj_timezone.make_aware(
+                parsed, dj_timezone.get_current_timezone()
+            )
         except Exception:
             dt = None
 
@@ -153,4 +115,40 @@ def save_article(client, title, url, raw_date, source):
             topic=_topic_clf.classify(title),
         )
     except IntegrityError:
+        # já existe
         pass
+
+# —————————————————————————————————————————
+# 5) Wrapper para gerar consultas via DistilGPT
+# —————————————————————————————————————————
+
+def gerar_consultas_com_distilgpt(kws, max_queries=5):
+    """
+    Gera consultas via DistilGPT e faz cache do resultado por 1h
+    usando uma chave MD5 “segura” para o Memcached.
+    """
+    # 1) cria string “bruta” a partir das keywords
+    key_raw = "|".join(kws) + f"|{max_queries}"
+    # 2) gera hash MD5 dessa string
+    key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()
+    cache_key = f"gpt_queries_{key_hash}"
+
+    # 3) tenta ler do cache
+    consultas = cache.get(cache_key)
+    if consultas:
+        return consultas
+
+    # 4) se não tem no cache, geramos de fato
+    prompt = (
+        f"Você é um buscador de notícias. Gere até {max_queries} consultas Google "
+        f"otimizadas para estas palavras-chave: {kws}."
+    )
+    resp = generator(prompt, max_length=200, num_return_sequences=1)[0]['generated_text']
+
+    # 5) cleanup e limit
+    consultas = [linha.strip() for linha in resp.splitlines() if linha.strip()][:max_queries]
+
+    # 6) salva no cache por 1 hora (3600s)
+    cache.set(cache_key, consultas, timeout=3600)
+
+    return consultas
