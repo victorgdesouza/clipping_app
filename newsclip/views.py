@@ -10,8 +10,9 @@ from django.http import HttpResponseForbidden, FileResponse, Http404
 from django.conf import settings
 from django import forms
 from django.core.paginator import Paginator
-from django.core.management import call_command
-
+from django_q.tasks import async_task
+from django.http import HttpResponseBadRequest, JsonResponse
+from .tasks import fetch_news_task
 from django.urls import reverse_lazy
 from django.contrib.auth.forms import UserCreationForm
 from django.views.generic import CreateView, UpdateView
@@ -24,7 +25,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.urls import reverse
 from .models import Client, Article
-import threading
+from django_q.tasks import async_task
 
 from newsclip.models import Article
 from django.utils import timezone
@@ -181,15 +182,10 @@ def fetch_news_view(request, client_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Método inválido")
 
-    # Função que dispara o comando em background
-    def _run():
-        call_command("fetch_news", "--client-id", str(client_id))
+    # 1) Enfileira a task para rodar imediatamente
+    fetch_news_task(client_id)
 
-    # Inicializa a thread daemon
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-
-    # Resposta imediata
+    # 2) Resposta imediata ao cliente
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         return JsonResponse({"status": "iniciado"})
     return redirect("client_news", client_id=client_id)

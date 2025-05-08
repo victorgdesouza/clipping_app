@@ -1,10 +1,10 @@
-# newsclip/tasks.py
-
+from background_task import background
 from django.core.management import call_command
 
-def fetch_news_task(client_id: int):
+@background(schedule=0, queue='fetch')
+def fetch_news_task(client_id):
     """
-    Task que o django-q vai enfileirar.
-    Apenas dispara o comando de management para buscar notícias.
+    Esse job dispara a management command de fetch_news
+    (o mesmo que você já tinha) — em background.
     """
     call_command("fetch_news", "--client-id", str(client_id))

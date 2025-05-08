@@ -54,7 +54,6 @@ ALLOWED_HOSTS += [".onrender.com"]
 
 INSTALLED_APPS = [
     'newsclip.apps.NewsclipConfig',
-    "django_q"
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -62,25 +61,28 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'django.contrib.sites',              # necessário para allauth
+    'django_q',
+    'background_task',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-    'reports_app.apps.ReportsAppConfig',  # seu app de relatórios
+    'reports_app.apps.ReportsAppConfig'  # seu app de relatórios
     
     
 ]
 
 Q_CLUSTER = {
-    "name": "clipping",         # nome do cluster
-    "workers": 2,               # número de tarefas concorrentes
-    "recycle": 500,             # reinicia worker a cada 500 tarefas
-    "timeout": 300,             # timeout (s) por tarefa
-    "orm": "default",           # usa o DB Django como broker
-    "retry": 3,                 # tenta cada tarefa até 3 vezes se falhar
-    "save_limit": 250,          # armazena no máximo este número de resultados
-    "poll": 15,                 # checa fila a cada 15s
+    "name": "clipping",
+    "workers": 2,
+    "recycle": 500,
+    "timeout": 300,    # cada tarefa pode levar até 5 minutos
+    "retry": 600,      # só volta a tentar depois de 10 minutos
+    "orm": "default",
+    "save_limit": 250,
+    "poll": 15,
 }
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
