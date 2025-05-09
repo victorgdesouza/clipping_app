@@ -276,7 +276,7 @@ class Command(BaseCommand):
             query = build_advanced_query(kws, getattr(client, "operators", None))
 
             # ──────────────── THREAD POOL ────────────────
-            with ThreadPoolExecutor(max_workers=2) as exe:
+            with ThreadPoolExecutor(max_workers=4) as exe:
                 futures = {
                     exe.submit(self.fetch_newsdata,   client, query, since_dt, utc_now, seen): "NewsData",
                     exe.submit(self.fetch_google_rss, client, kws,               seen): "GoogleRSS",
