@@ -14,12 +14,7 @@ import sys,os
 import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
-#from transformers import pipeline
 
-#generator = pipeline('text-generation', model='distilgpt2')
-#output = generator("Aqui vai o prompt", max_length=100, num_return_sequences=1)
-
-#GENERATOR = generator
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -61,8 +56,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'django.contrib.sites',              # necessário para allauth
-    'django_q',
-    'background_task',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -72,16 +65,7 @@ INSTALLED_APPS = [
     
 ]
 
-Q_CLUSTER = {
-    "name": "clipping",
-    "workers": 2,
-    "recycle": 500,
-    "timeout": 300,    # cada tarefa pode levar até 5 minutos
-    "retry": 600,      # só volta a tentar depois de 10 minutos
-    "orm": "default",
-    "save_limit": 250,
-    "poll": 15,
-}
+
 
 
 MIDDLEWARE = [
@@ -270,4 +254,3 @@ LOGGING = {
     },
 }
 
-USE_LLM_SEARCH = os.getenv("USE_LLM_SEARCH", "false").lower() == "true"

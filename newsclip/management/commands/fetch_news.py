@@ -11,8 +11,9 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
-from newsclip.utils import gerar_consultas_com_distilgpt, save_article
 from newsclip.utils import buscar_com_google
+from newsclip.utils import save_article
+
 
 from django.db import IntegrityError
 from django.core.management.base import BaseCommand
@@ -275,15 +276,14 @@ class Command(BaseCommand):
             query = build_advanced_query(kws, getattr(client, "operators", None))
 
             # ──────────────── THREAD POOL ────────────────
-            with ThreadPoolExecutor(max_workers=6) as exe:
+            with ThreadPoolExecutor(max_workers=2) as exe:
                 futures = {
                     exe.submit(self.fetch_newsdata,   client, query, since_dt, utc_now, seen): "NewsData",
                     exe.submit(self.fetch_google_rss, client, kws,               seen): "GoogleRSS",
                     exe.submit(self.fetch_rss_feeds,  client, kws,     since_dt, seen): "RSSFeeds",
                     exe.submit(self.fetch_scrape,     client, kws,               seen): "WebScrape",
                 }
-                if settings.USE_LLM_SEARCH:
-                    futures[exe.submit(self.fetch_llm_search, client, kws, seen)] = "LLMGoogle"
+                
 
                 total = 0
                 for fut in as_completed(futures):
@@ -480,68 +480,5 @@ class Command(BaseCommand):
             cnt += 1
         return cnt
 
-    def fetch_llm_search(self, client, kws, seen, max_queries=5, num_results=10):
-        """
-        Gera queries via LLM e busca no Google, bloqueia perfis do cliente
-        e salva apenas URLs novas que contenham todas as kws exatas.
-        """
-        cnt = 0
-        # 1) Gera e limpa consultas
-        try:
-            consultas = gerar_consultas_com_distilgpt(kws, max_queries)
-            consultas = [q.replace("site:linkedin.com", "") for q in consultas]
-            self.stdout.write(f"{client.name} • LLM: gerando {len(consultas)} consultas")
-            urls = buscar_com_google(consultas, num_results=num_results)
-            self.stdout.write(f"{client.name} • LLM retornou {len(urls)} URLs")
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"{client.name} • LLMGoogle erro: {e}"))
-            return 0
+          
 
-        # 2) Bloqueia perfis do próprio cliente
-        banned = []
-        if getattr(client, "instagram", None):
-            banned.append(f"instagram.com/{client.instagram.lstrip('@')}")
-        if getattr(client, "x", None):
-            banned.append(f"x.com/{client.x.lstrip('@')}")
-        if getattr(client, "youtube", None):
-            banned.append(f"youtube.com/{client.youtube}")
-
-        # 3) Itera URLs e salva
-        for url in urls:
-            if url in seen or any(b in url for b in banned):
-                continue
-
-            title = "(via LLM)"
-            raw_date = None
-
-            # Vídeo YouTube: extrai título/data sem warnings
-            if "youtube.com/watch" in url or "youtu.be/" in url:
-                try:
-                    import yt_dlp
-                    ydl_opts = {
-                        'quiet': True,
-                        'nocheckcertificate': True,
-                        'ignore_warnings': True,
-                        'no_warnings': True,
-                    }
-                    ydl = yt_dlp.YoutubeDL(ydl_opts)
-                    info = ydl.extract_info(url, download=False)
-                    title = info.get('title', title)
-                    upload = info.get('upload_date')
-                    if upload:
-                        raw_date = f"{upload[:4]}-{upload[4:6]}-{upload[6:8]}T00:00:00"
-                except Exception:
-                    pass
-
-            # 4) Garante que o título tenha todas as kws exatas
-            words = title.lower().split()
-            if not all(kw.lower() in words for kw in kws):
-                continue
-
-            # 5) Salva
-            seen.add(url)
-            save_article(client, title=title[:300], url=url, raw_date=raw_date, source="LLM/Google")
-            cnt += 1
-
-        self.stdout.write(self.style.SUCCESS(f"{client.name}: inseridas {cnt} notícias via LLM"))
-        return cnt

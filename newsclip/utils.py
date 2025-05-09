@@ -5,16 +5,14 @@ import hashlib
 from pathlib import Path
 from collections import Counter
 from django.conf import settings
-from django.core.cache import cache
 from django.db import IntegrityError
 from django.utils import timezone as dj_timezone
 from googlesearch import search
 from dateutil import parser as date_parser
-from nltk.tokenize import sent_tokenize, word_tokenize
-from nltk.corpus import stopwords
+
 
 from newsclip.models import Article
-from newsclip.gpt_utils import gerar_consultas_com_distilgpt
+
 
 # —————————————————————————————————————————
 # 1) Summary extractivo rápido (NLTK)
@@ -26,28 +24,11 @@ from newsclip.gpt_utils import gerar_consultas_com_distilgpt
 
 
 def generate_summary(text: str, num_sentences: int = 3) -> str:
-    # 1) quebrou em sentenças
-    sentences = sent_tokenize(text, language='portuguese')
-    if len(sentences) <= num_sentences:
-        return text
+    # resumo extractivo simples: pega as N primeiras sentenças
+    sentences = text.split('.')
+    return '.'.join(sentences[:num_sentences]).strip() + '.'
 
-    # 2) tokeniza e conta frequência, sem stopwords
-    words = word_tokenize(text.lower(), language='portuguese')
-    tokens = [w for w in words if w.isalpha()]
-    stop = set(stopwords.words('portuguese'))
-    freqs = Counter(w for w in tokens if w not in stop)
-
-    # 3) pontua cada sentença
-    scores = {}
-    for idx, sent in enumerate(sentences):
-        sent_tokens = [w for w in word_tokenize(sent.lower()) if w.isalpha()]
-        scores[idx] = sum(freqs.get(w, 0) for w in sent_tokens)
-
-    # 4) escolhe as top N
-    best_idxs = sorted(scores, key=scores.get, reverse=True)[:num_sentences]
-    # 5) ordena de volta e junta
-    best_sentences = [sentences[i] for i in sorted(best_idxs)]
-    return " ".join(best_sentences)
+    
 
 
 # —————————————————————————————————————————
@@ -119,26 +100,7 @@ def save_article(client, title, url, raw_date, source):
         # já existe
         pass
 
-# —————————————————————————————————————————
-# 5) Wrapper para gerar consultas via DistilGPT
-# —————————————————————————————————————————
-
-_generator = None
-
-def get_generator():
-    global _generator
-    if _generator is None:
-        from transformers import pipeline
-        _generator = pipeline(
-            'text-generation',
-            model='distilgpt2',
-            device='cpu'  # garante que não tente GPU
-        )
-    return _generator
+#
 
 
-def gerar_consultas_com_distilgpt(kws, max_queries=5):
-    gen = get_generator()
-    prompt = f"Você é um buscador de notícias. Gere até {max_queries} consultas otimizadas para: {kws}"
-    txt = gen(prompt, max_length=100, num_return_sequences=1)[0]['generated_text']
-    return [linha.strip() for linha in txt.splitlines() if linha.strip()][:max_queries]
+
