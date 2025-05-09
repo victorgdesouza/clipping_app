@@ -4,3 +4,4 @@ table { width: 100%; border-collapse: collapse; margin-top: 1em; }
 th, td { border: 1px solid #666; padding: 6px; }
 th { background: #ddd; }
 caption { caption-side: bottom; font-style: italic; }
+  

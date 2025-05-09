@@ -24,7 +24,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.urls import reverse
 from .models import Client, Article
-
+from django.utils.text import slugify
 
 from newsclip.models import Article
 from django.utils import timezone
@@ -189,25 +189,26 @@ def fetch_news_view(request, client_id):
 
 @login_required
 def client_reports(request, client_id):
-    client = get_object_or_404(Client, id=client_id)
+    client = get_object_or_404(Client, pk=client_id)
+    # checa permissão
     if not (request.user.is_superuser or request.user in client.users.all()):
         return HttpResponseForbidden()
 
     rep_dir = pathlib.Path(settings.MEDIA_ROOT) / "reports"
-    all_files = rep_dir.glob("report_*.*")
-    files = []
-    for f in all_files:
-        # f.name = "report_{clientid}_{dias}d_{timestamp}.ext"
-        parts = f.name.split("_")
-        if len(parts) >= 2 and parts[1] == str(client_id):
-            files.append(f.name)
-    files.sort(reverse=True)
+    # slug do cliente pra bater com o nome de arquivo
+    client_slug = slugify(client.name)
 
-    form = ReportForm() 
+    # lista todos os arquivos que comecem com 'relatorio_{slug}_'
+    files = sorted(
+        [f.name for f in rep_dir.glob(f"relatorio_{client_slug}_*.*")],
+        reverse=True
+    )
+
+    form = ReportForm(request.POST or None)
     return render(request, "newsclip/client_reports.html", {
         "client": client,
         "files": files,
-        "form": form,             # <- passa o form pro template
+        "form": form,
     })
 
 @require_POST

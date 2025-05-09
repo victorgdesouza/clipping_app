@@ -207,8 +207,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = "/static/"                    # **precisa** TER a barra no início e no fim
+STATIC_ROOT = BASE_DIR / "staticfiles"     # pasta onde o collectstatic vai juntar tudo
+
+STATICFILES_DIRS = [
+    BASE_DIR / "core" / "static",          # aqui está o seu newsclip/css/base.css
+
+]
 MEDIA_ROOT  = BASE_DIR/"media"
 MEDIA_URL  = "/media/"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"

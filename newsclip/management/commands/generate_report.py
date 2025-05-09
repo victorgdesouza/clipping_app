@@ -1,15 +1,19 @@
 # newsclip/management/commands/generate_report.py
 
-from django.core.management.base import BaseCommand
-from newsclip.models import Client, Article
-from django.utils import timezone
-from dateutil.relativedelta import relativedelta
-import pandas as pd
-import pathlib
 import os
+import pathlib
+
+import pandas as pd
 import pdfkit
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.core.management.base import BaseCommand
 from django.template.loader import render_to_string
+from django.utils import timezone
+from django.utils.text import slugify
+
+from newsclip.models import Client, Article
+
 
 class Command(BaseCommand):
     help = "Gera relatório (PDF/Excel/CSV) de notícias para um cliente num intervalo arbitrário"
@@ -24,7 +28,7 @@ class Command(BaseCommand):
             help="Intervalo em dias (número) ou 'all' para relatório completo"
         )
         parser.add_argument(
-            "--format", type=str, choices=["pdf", "xlsx", "csv"], required=True,
+            "--format", choices=["pdf", "xlsx", "csv"], required=True,
             help="Formato de saída"
         )
 
@@ -46,39 +50,58 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Cliente {client_id} não encontrado."))
             return
 
-        # define intervalo de datas
+        # monta queryset de artigos
         now = timezone.now()
         if days is not None:
             since = now - relativedelta(days=days)
-            qs = Article.objects.filter(client=client,
-                                        published_at__gte=since,
-                                        published_at__lte=now)
+            qs = Article.objects.filter(
+                client=client,
+                published_at__gte=since,
+                published_at__lte=now
+            ).order_by("published_at")
         else:
-            qs = Article.objects.filter(client=client)
+            qs = Article.objects.filter(client=client).order_by("published_at")
 
         if not qs.exists():
-            texto = "nenhum artigo neste período." if days is not None else "nenhum artigo cadastrado."
-            self.stdout.write(self.style.WARNING(f"{client.name}: {texto}"))
+            msg = "nenhum artigo neste período." if days is not None else "nenhum artigo cadastrado."
+            self.stdout.write(self.style.WARNING(f"{client.name}: {msg}"))
             return
 
         # monta DataFrame
-        data = [{
-            "Título": art.title,
-            "Data": art.published_at
-                        .astimezone(timezone.get_current_timezone())
-                        .strftime("%d/%m/%Y %H:%M"),
-            "Link": art.url,
-            "Fonte": art.source,
-            "Resumo": getattr(art, "summary", "") or ""
-        } for art in qs]
+        data = []
+        for art in qs:
+            data.append({
+                "Título": art.title,
+                "Data": art.published_at.astimezone(
+                    timezone.get_current_timezone()
+                ).strftime("%d/%m/%Y %H:%M"),
+                "Link": art.url,
+                "Fonte": art.source,
+                "Resumo": getattr(art, "summary", "") or ""
+            })
         df = pd.DataFrame(data)
 
-        # prepara nome e diretório de saída
-        label = f"{days}d" if days is not None else "all"
-        timestamp = now.strftime("%Y%m%d%H%M%S")
-        filename = f"report_{client_id}_{label}_{timestamp}.{out_format}"
+        # prepara diretório
         rep_dir = pathlib.Path(settings.MEDIA_ROOT) / "reports"
         rep_dir.mkdir(parents=True, exist_ok=True)
+
+        # slug, data, label e versão
+        slug     = slugify(client.name)               # ex: "luiz-carlos-motta"
+        date_str = now.strftime("%d%m%Y")             # ex: "08052025"
+        label    = f"{days}d" if days is not None else "all"  # ex: "15d" ou "all"
+
+        # detecta versões já existentes
+        existing = list(rep_dir.glob(f"relatorio_{slug}_{date_str}_v*_{label}.*"))
+        vers = []
+        for p in existing:
+            parts = p.stem.split("_")
+            for part in parts:
+                if part.startswith("v") and part[1:].isdigit():
+                    vers.append(int(part[1:]))
+        v = max(vers) + 1 if vers else 1
+
+        # monta nome final e caminho
+        filename    = f"relatorio_{slug}_{date_str}_v{v}_{label}.{out_format}"
         output_path = rep_dir / filename
 
         # === CSV / XLSX ===
@@ -127,14 +150,14 @@ class Command(BaseCommand):
             "interval": "Completo" if days is None else f"Últimos {days} dias",
             "generated_at": now,
         })
-        config = pdfkit.configuration(wkhtmltopdf=bin_path)
+        config  = pdfkit.configuration(wkhtmltopdf=bin_path)
         options = {
-            "encoding": "UTF-8",
-            "page-size": "A4",
-            "margin-top": "1cm",
-            "margin-right": "1cm",
+            "encoding":    "UTF-8",
+            "page-size":   "A4",
+            "margin-top":    "1cm",
+            "margin-right":  "1cm",
             "margin-bottom": "1cm",
-            "margin-left": "1cm",
+            "margin-left":   "1cm",
         }
         pdfkit.from_string(
             html,
@@ -145,6 +168,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"{client.name}: relatório PDF gerado → {output_path}"
         ))
+
 
 
 

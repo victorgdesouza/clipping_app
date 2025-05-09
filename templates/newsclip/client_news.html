@@ -4,7 +4,10 @@
 {% block title %}Notícias de {{ client.name }}{% endblock title %}
 
 {% block content %}
-  <h1 class="page-title">Notícias de {{ client.name }}</h1>
+<h1 class="page-title">
+  Notícias de 
+  <span class="client-name">{{ client.name }}</span>
+</h1>
 
   <div class="action-bar">
     <a class="button" href="{% url 'dashboard' %}">← Dashboard</a>
@@ -14,50 +17,58 @@
     </button>
   </div>
 
-  <div id="loading-overlay">…</div>
+  <!-- overlay full-screen -->
+<div id="loading-overlay" style="display:none;position:fixed;top:0;left:0;
+width:100%;height:100%;background:rgba(255,255,255,0.8);
+justify-content:center;align-items:center;z-index:1000;flex-direction:column;">
+<div class="spinner"></div>
+<p>Buscando notícias…</p>
+</div>
 
-  <script>
-    function getCookie(name) {
-      let v = null;
-      document.cookie.split(';').forEach(c => {
-        c = c.trim();
-        if (c.startsWith(name + '=')) {
-          v = decodeURIComponent(c.slice(name.length + 1));
-        }
-      });
-      return v;
-    }
-
-    const btnFetch = document.getElementById('btn-fetch-news');
-    const overlay  = document.getElementById('loading-overlay');
-
-    btnFetch.addEventListener('click', e => {
-      e.preventDefault();
-      btnFetch.disabled = true;
-      overlay.style.display = 'flex';
-
-      fetch("{% url 'fetch_news' client.id %}", {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': getCookie('csrftoken'),
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      })
-      .then(response => {
-        if (response.redirected) {
-          window.location.href = response.url;
-        } else {
-          window.location.reload();
-        }
-      })
-      .catch(err => {
-        alert('Falha ao buscar notícias.');
-        console.error(err);
-        btnFetch.disabled = false;
-        overlay.style.display = 'none';
-      });
+<script>
+  function getCookie(name) {
+    let v = null;
+    document.cookie.split(';').forEach(c => {
+      c = c.trim();
+      if (c.startsWith(name + '=')) {
+        v = decodeURIComponent(c.slice(name.length + 1));
+      }
     });
-  </script>
+    return v;
+  }
+  const btnFetch = document.getElementById('btn-fetch-news');
+  const overlay  = document.getElementById('loading-overlay');
+
+  btnFetch.addEventListener('click', e => {
+    e.preventDefault();
+    btnFetch.disabled = true;
+    overlay.style.display = 'flex';  // mostra o overlay
+
+    fetch("{% url 'fetch_news' client.id %}", {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => {
+      // Quando a requisição terminar, esconde o overlay
+      overlay.style.display = 'none';
+      btnFetch.disabled = false;
+      if (response.redirected) {
+        window.location.href = response.url;
+      } else {
+        window.location.reload();
+      }
+    })
+    .catch(err => {
+      overlay.style.display = 'none';
+      btnFetch.disabled = false;
+      alert('Falha ao buscar notícias.');
+      console.error(err);
+    });
+  });
+</script>
 
   <form method="get" class="filter-form">
     <div class="filter-group">

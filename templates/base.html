@@ -2,6 +2,8 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+  
+  <link rel="stylesheet" href="{% static 'newsclip/css/base.css' %}">
   <meta charset="UTF-8">
   <title>{% block title %}Clipping App{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -100,12 +102,22 @@
       margin-bottom: var(--spacing-md);
     }
 
-    h1 {
-      color: var(--white);
-      border-bottom: 2px solid var(--orange-tertiary);
-      padding-bottom: var(--spacing-xs);
-      margin-bottom: var(--spacing-lg);
-    }
+    /* em vez de h1 { … } use: */
+  header h1 {
+  color: var(--white);
+  border-bottom: 2px solid var(--orange-tertiary);
+  padding-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-lg);
+}
+
+h1.page-title {
+  color: var(--gray-very-dark);
+  background-color: var(--gray-light);
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius);
+  border-bottom: 2px solid var(--orange-primary);
+  display: inline-block; /* pra ficar só no texto */
+}
 
     /* Links */
     a {
