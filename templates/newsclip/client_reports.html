@@ -1,36 +1,42 @@
-{# templates/newsclip/client_reports.html #}
 {% extends "base.html" %}
-{% block title %}Relatórios de {{ client.name }}{% endblock %}
 
 {% block content %}
-  <h1>Relatórios: {{ client.name }}</h1>
-
-  {# === Formulário para gerar novo relatório === #}
-  <h2>Gerar novo relatório</h2>
-  <form method="post" action="{% url 'generate_report_view' client.id %}">
-    {% csrf_token %}
-    {{ form.as_p }}  {# renderiza ‘days’ com todas as opções, inclusive “Relatório Completo” #}
-    <button type="submit">Gerar relatório</button>
-  </form>
-
-  {# === Lista de relatórios disponíveis === #}
-  <h2>Relatórios já gerados</h2>
-  <ul>
-    {% for fname in files %}
-      <li>
-        <a href="{% url 'download_report' client.id fname %}">
-          {{ fname }}
-        </a>
-      </li>
-    {% empty %}
-      <li>Sem relatórios gerados ainda.</li>
+{% if messages %}
+  <ul class="messages">
+    {% for msg in messages %}
+      <li class="{{ msg.tags }}">{{ msg }}</li>
     {% endfor %}
   </ul>
+{% endif %}
+  <h1>Relatórios de {{ client.name }}</h1>
 
-  {# === Navegação de volta === #}
-  <p style="margin-top:1em;">
-    <a class="button" href="{% url 'client_news' client.id %}">← Voltar às notícias</a>
-    <a class="button" href="{% url 'dashboard' %}">← Voltar aos clientes</a>
+  <p>
+    <a href="{% url 'dashboard' %}">&larr; Voltar ao painel</a>
   </p>
+
+  <h2>Gerar novo relatório</h2>
+    
+  <form action="{% url 'generate_report_view' client.id %}"
+      method="post"
+      style="margin-bottom: 1em;">
+  {% csrf_token %}
+  {{ form.as_p }}              {# aqui entram days (incluindo “all”) e out_format #}
+  <button type="submit" class="button">Gerar relatório</button>
+</form>
+
+
+
+  <h2>Relatórios já gerados</h2>
+  {% if files %}
+    <ul>
+      {% for fn in files %}
+        <li>
+          <a href="{% url 'download_report' client.id fn %}">{{ fn }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Não há relatórios disponíveis.</p>
+  {% endif %}
 {% endblock %}
 
