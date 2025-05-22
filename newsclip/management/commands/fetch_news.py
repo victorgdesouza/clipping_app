@@ -480,5 +480,29 @@ class Command(BaseCommand):
             cnt += 1
         return cnt
 
+def buscar_noticias_para_cliente(cliente):
+    """Função que executa as buscas de fontes para um único cliente"""
+    # Parte da lógica já presente no método handle()
+    from datetime import datetime, timedelta
+    kws = [strip_accents(kw.strip('"').lower()) for kw in cliente.keywords.split(",") if kw.strip()]
+    if not kws:
+        return 0
+
+    seen = set()
+    utc_now = datetime.utcnow()
+    since_dt = utc_now - timedelta(days=LOOKBACK_DAYS)
+    query = build_advanced_query(kws, getattr(cliente, "operators", None))
+    total = 0
+
+    # O ideal seria também modularizar essas funções para não depender de self
+    # Por simplicidade, vamos chamar só as funções que não dependem de self
+    total += Command().fetch_google_rss(cliente, kws, seen)
+    total += Command().fetch_rss_feeds(cliente, kws, since_dt, seen)
+    total += Command().fetch_scrape(cliente, kws, seen)
+    # Descomente as linhas abaixo se NewsAPI/NewsData estiverem configuradas
+    total += Command().fetch_newsapi(cliente, query, since_dt, utc_now, seen)
+    total += Command().fetch_newsdata(cliente, query, since_dt, utc_now, seen)
+
+    return total
           
 

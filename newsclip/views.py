@@ -13,7 +13,7 @@ from django.core.paginator import Paginator
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.urls import reverse_lazy
 from django.contrib.auth.forms import UserCreationForm
-from django.views.generic import CreateView, UpdateView
+from django.views.generic import CreateView, UpdateView, ListView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import JsonResponse
 from django.core.management.base import BaseCommand
@@ -29,7 +29,7 @@ from django.utils.text import slugify
 from newsclip.models import Article
 from django.utils import timezone
 from datetime import timedelta
-
+from newsclip.management.commands.fetch_news import buscar_noticias_para_cliente
 
 # 1) Cadastro de usuário
 class SignUpView(CreateView):
@@ -42,27 +42,70 @@ class SignUpView(CreateView):
 # 3) Cadastro de clientes
 class ClientCreateView(LoginRequiredMixin, CreateView):
     model = Client
-    fields = ["name", "keywords", "domains","instagram", "x", "youtube","users"]
+    # Remova "users" da lista!
+    fields = ["name", "keywords", "domains", "instagram", "x", "youtube"]
     template_name = "newsclip/client_form.html"
     success_url = reverse_lazy("dashboard")
 
     def form_valid(self, form):
         response = super().form_valid(form)
+        # Adiciona automaticamente o usuário logado como responsável
         self.object.users.add(self.request.user)
         return response
 
 class ClientUpdateView(UpdateView):
     model = Client
-    fields = ["name", "keywords", "domains","instagram", "x", "youtube","users"]
+    # Remova "users" da lista!
+    fields = ["name", "keywords", "domains", "instagram", "x", "youtube"]
     template_name = "newsclip/client_form.html"
     success_url = reverse_lazy("dashboard")
 
     def form_valid(self, form):
-        # mantém o usuário logado associado (não removemos ninguém aqui)
         response = super().form_valid(form)
         if self.request.user not in self.object.users.all():
             self.object.users.add(self.request.user)
         return response
+
+class BuscarTodasNoticiasView(ListView):
+    template_name = 'newsclip/todas_noticias.html'
+    context_object_name = 'clientes'
+
+    def get(self, request, *args, **kwargs):
+        # Busca novas notícias para todos os clientes antes de exibir
+        clientes = Client.objects.all()
+        for cliente in clientes:
+            buscar_noticias_para_cliente(cliente)
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return Client.objects.all().order_by('name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        clientes = context['clientes']
+        clientes_noticias = []
+        for cliente in clientes:
+            artigos = Article.objects.filter(client=cliente).order_by('-published_at')[:5]  # Só 5!
+            total = Article.objects.filter(client=cliente).count()
+            clientes_noticias.append({
+                'cliente': cliente,
+                'noticias': artigos,
+                'total': total,
+            })
+        context['clientes_noticias'] = clientes_noticias
+        return context
+
+def noticias_cliente_json(request, pk):
+        artigos = Article.objects.filter(client_id=pk).order_by('-published_at')
+        dados = []
+        for artigo in artigos:
+            dados.append({
+                "title": artigo.title,
+                "source": artigo.source,
+                "published_at": artigo.published_at.strftime("%d/%m/%Y %H:%M"),
+                "url": artigo.url
+            })
+        return JsonResponse({"noticias": dados})
 
 
 @login_required
@@ -93,6 +136,19 @@ def client_news(request, client_id):
         qs = qs.order_by("source", "-published_at")
     else:
         qs = qs.order_by("-published_at")
+
+    # Aqui entra o processamento do POST!
+    if request.method == "POST":
+        acao = request.POST.get('acao')
+        ids = request.POST.getlist('ids[]')
+        if not ids:
+            messages.warning(request, "Selecione pelo menos uma notícia.")
+            return redirect(request.path)
+        if acao == "excluir":
+            Article.objects.filter(id__in=ids).update(excluded=True)
+        elif acao == "manter":
+            Article.objects.filter(id__in=ids).update(excluded=False)
+        return redirect(request.path)
 
     # 2) paginação
     page = Paginator(qs, page_size).get_page(page_number)

@@ -8,6 +8,8 @@
   <p>
     <a href="{% url 'client_add' %}">+ Novo Cliente</a>
   </p>
+  
+<a href="{% url 'buscar_todas_noticias' %}" class="button" style="background: #1da1f2; color: #fff;">🔎 Buscar notícias de todos os clientes</a>
 
   <ul>
     {% for c in clients %}

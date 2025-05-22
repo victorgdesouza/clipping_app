@@ -5,6 +5,8 @@ from django.urls import path, include
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import views as auth_views
+from newsclip import views
+
 
 from newsclip.views import (
     SignUpView,
@@ -51,7 +53,9 @@ urlpatterns = [
     path('dashboard/<int:client_id>/news/',           login_required(client_news),        name='client_news'),
     path('dashboard/<int:client_id>/news/fetch/',     login_required(fetch_news_view),    name='fetch_news'),
     path('dashboard/<int:client_id>/news/bulk-update/', login_required(bulk_update_news), name='bulk_update_news'),
-
+    path('noticias/todos/', views.BuscarTodasNoticiasView.as_view(), name='buscar_todas_noticias'),
+    path('api/noticias/cliente/<int:pk>/', views.noticias_cliente_json, name='noticias_cliente_json'),
+   
     # Relatórios
     path('dashboard/<int:client_id>/reports/',            login_required(client_reports),          name='client_reports'),
     path('dashboard/<int:client_id>/reports/generate/',   login_required(generate_report_view),    name='generate_report_view'),
