@@ -466,18 +466,21 @@ class Command(BaseCommand):
             )
             return cnt
         for art in resp.get('articles', []):
+            if not art or not isinstance(art, dict):
+                continue  # pula qualquer valor None ou não-dict
+
             url = art.get('url')
             if not url or url in seen:
                 continue
-            seen.add(url)
-            save_article(
-                client,
-                art.get('title', '')[:300],
-                url,
-                art.get('publishedAt'),
-                art.get('source', {}).get('name', '')
-            )
-            cnt += 1
+        seen.add(url)
+        save_article(
+            client,
+            art.get('title', '')[:300],
+            url,
+            art.get('publishedAt'),
+            art.get('source', {}).get('name', '')
+        )
+        cnt += 1
         return cnt
 
 def buscar_noticias_para_cliente(cliente):
