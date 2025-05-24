@@ -475,7 +475,7 @@ class Command(BaseCommand):
                 art.get('title', '')[:300],
                 url,
                 art.get('publishedAt'),
-                art.get('source', {}).get('name', '')
+                (art.get('source') or {}).get('name', '')
             )
             cnt += 1
         return cnt
