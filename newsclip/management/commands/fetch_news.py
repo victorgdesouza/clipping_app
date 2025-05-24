@@ -468,36 +468,47 @@ class Command(BaseCommand):
             )
             return cnt
 
-    for idx, art in enumerate(resp.get('articles', [])):
-        try:
-            url = art.get('url')
-            if not url or url in seen:
-                continue
-            seen.add(url)
+        for idx, art in enumerate(resp.get('articles', [])):
+            try:
+                url = art.get('url')
+                if not url or url in seen:
+                    continue
+                seen.add(url)
 
-            # Proteção extra em todos os campos
-            title = art.get('title') or ''
-            published = art.get('publishedAt') or ''
-            source = art.get('source') or {}
-            if not isinstance(source, dict):
-                source = {}
+                # Proteção extra em todos os campos
+                title = art.get('title') or ''
+                published = art.get('publishedAt') or ''
+                source = art.get('source') or {}
+                if not isinstance(source, dict):
+                    source = {}
 
-            source_name = source.get('name', '')
+                source_name = source.get('name', '')
 
-            save_article(
-                client,
-                title[:300],
-                url,
-                published,
-                source_name
-            )
-            cnt += 1
-        except Exception as e:
-            # Mostra tudo o que está vindo no artigo para debugar
-            print(f"[ERRO FETCH NEWSAPI] Artigo {idx} problemático: {art}")
-            print(f"Erro: {e}")
+                # Certifique-se de que a função save_article está definida e acessível
+                # ou substitua pela sua lógica de salvamento.
+                # Exemplo:
+                # from .models import Article # Se Article for um modelo Django
+                # Article.objects.create(
+                #     client=client,
+                #     title=title[:300],
+                #     url=url,
+                #     published_at=datetime.datetime.strptime(published, '%Y-%m-%dT%H:%M:%SZ'), # Ajuste o formato se necessário
+                #     source_name=source_name
+                # )
+                save_article( # Esta função precisa ser definida em seu escopo
+                    client,
+                    title[:300],
+                    url,
+                    published,
+                    source_name
+                )
+                cnt += 1
+            except Exception as e:
+                # Mostra tudo o que está vindo no artigo para debugar
+                print(f"[ERRO FETCH NEWSAPI] Artigo {idx} problemático: {art}")
+                print(f"Erro: {e}")
 
-    return cnt
+        return cnt
 
 
 
