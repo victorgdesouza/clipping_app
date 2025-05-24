@@ -445,9 +445,11 @@ class Command(BaseCommand):
         cnt = 0
         if not NEWSAPI_KEY:
             return cnt
+
         limit_since = until_dt - timedelta(days=MAX_NEWSAPI_DAYS)
         since_dt_api = max(since_dt, limit_since)
         api = NewsApiClient(api_key=NEWSAPI_KEY)
+
         try:
             resp = api.get_everything(
                 q=query,
@@ -465,20 +467,27 @@ class Command(BaseCommand):
                 )
             )
             return cnt
+
         for art in resp.get('articles', []):
             url = art.get('url')
             if not url or url in seen:
                 continue
             seen.add(url)
+            # Fonte pode ser None ou dicionário sem 'name'
+            source_name = ''
+            source = art.get('source')
+            if source and isinstance(source, dict):
+                source_name = source.get('name', '')
             save_article(
                 client,
                 art.get('title', '')[:300],
                 url,
                 art.get('publishedAt'),
-                (art.get('source') or {}).get('name', '')
+                source_name
             )
             cnt += 1
         return cnt
+
 
 def buscar_noticias_para_cliente(cliente):
     """Função que executa as buscas de fontes para um único cliente"""
