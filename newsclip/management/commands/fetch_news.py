@@ -468,25 +468,37 @@ class Command(BaseCommand):
             )
             return cnt
 
-        for art in resp.get('articles', []):
+    for idx, art in enumerate(resp.get('articles', [])):
+        try:
             url = art.get('url')
             if not url or url in seen:
                 continue
             seen.add(url)
-            # Fonte pode ser None ou dicionário sem 'name'
-            source_name = ''
-            source = art.get('source')
-            if source and isinstance(source, dict):
-                source_name = source.get('name', '')
+
+            # Proteção extra em todos os campos
+            title = art.get('title') or ''
+            published = art.get('publishedAt') or ''
+            source = art.get('source') or {}
+            if not isinstance(source, dict):
+                source = {}
+
+            source_name = source.get('name', '')
+
             save_article(
                 client,
-                art.get('title', '')[:300],
+                title[:300],
                 url,
-                art.get('publishedAt'),
+                published,
                 source_name
             )
             cnt += 1
-        return cnt
+        except Exception as e:
+            # Mostra tudo o que está vindo no artigo para debugar
+            print(f"[ERRO FETCH NEWSAPI] Artigo {idx} problemático: {art}")
+            print(f"Erro: {e}")
+
+    return cnt
+
 
 
 def buscar_noticias_para_cliente(cliente):
